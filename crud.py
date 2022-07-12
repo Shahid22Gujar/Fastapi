@@ -1,5 +1,7 @@
+from fastapi import HTTPException,status,Depends
 from sqlmodel import Session
 import models_and_schemas
+import database
 import auth
 import json
 
@@ -41,8 +43,8 @@ def create_movies(db:Session,movie:models_and_schemas.UserSchema):
     db.refresh(db_movie)
     return db_movie
 
-def get_movies(db:Session):
-    movies=db.query(models_and_schemas.Movies).all()
+def get_movies(db:Session,skip: int = 0, limit: int = 100):
+    movies=db.query(models_and_schemas.Movies).offset(skip).limit(limit).all()
     return movies
 
 def get_movie_by_id(db: Session, id: int):
@@ -57,17 +59,40 @@ def delete_movie(db: Session, id: int):
     
 def update_movie(db:Session,movie:models_and_schemas.MovieSchema,id: int):
     genre=json.dumps(movie.genre)
-    print(genre)
-    db_movie=db.query(models_and_schemas.Movies).filter(models_and_schemas.Movies.id==id).update({'popularity':movie.popularity,
+    # db_movie=db.query(models_and_schemas.Movies).filter(models_and_schemas.Movies.id==id).update({'popularity':movie.popularity,
+    #     'director':movie.director,
+    #     'genre':genre,
+    #     'imdb_score':movie.imdb_score,
+    #     'name':movie.name}
+    # )
+    db_movie=get_movie_by_id(db,id)
+   
+  
+    
+    db_movie.update({'popularity':movie.popularity,
         'director':movie.director,
         'genre':genre,
         'imdb_score':movie.imdb_score,
         'name':movie.name}
     )
     db.commit()
-    
+    return db_movie
    
- 
-    
-    return db_movie 
+"""function to insert json data into db"""
+def create_movies_from_json(db:Session,movie):
+    print(movie,"From crud program")
+    genre=json.dumps(movie.get('genre'))
+    print(genre)
+    db_movie=models_and_schemas.Movies(
+        popularity=movie.get('99popularity'),
+        director=movie.get('director'),
+        genre=genre,
+        imdb_score=movie.get('imdb_score'),
+        name=movie.get('name')
+    )
+    db.add(db_movie)
+    db.commit()
+    db.refresh(db_movie)
+    return db_movie
+  
     

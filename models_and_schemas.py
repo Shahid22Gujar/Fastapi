@@ -1,6 +1,6 @@
 from sqlmodel import SQLModel,Field
 from pydantic import EmailStr
-from enum import Enum
+from enum import Enum, unique
 from typing import Optional
 
 class Roles(str,Enum):
