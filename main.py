@@ -1,13 +1,15 @@
 
+
 from fastapi import FastAPI,Depends,HTTPException,status
 from sqlmodel import Session
-import database,models_and_schemas
+from app import database,models_and_schemas
 from fastapi.security import OAuth2PasswordRequestForm
-import crud
-import auth
+from app import crud
+from app import auth
 from fastapi.responses import HTMLResponse
 import json
 from sqlalchemy.orm import sessionmaker
+
 
 app=FastAPI()
 
@@ -41,6 +43,7 @@ def load_json_to_db():
             )
             db.add(db_movie)
             # db.query(models_and_schemas.Movies).delete()
+            # db.query(models_and_schemas.User).delete()
             db.commit()
             
             
@@ -59,9 +62,20 @@ def login(db:Session = Depends(database.get_db),form_data: OAuth2PasswordRequest
         token=auth.create_access_token(db_user)
         return {"access_token":token,"token_type":"Bearer"}
 
-    return db_user
+    return "Wrong username or  password "
+@app.post('/test-login',tags=["Users"])
+def login(form_data: models_and_schemas.UserLoginSchema,db:Session = Depends(database.get_db)):
+    db_user = crud.get_user_by_username(db=db,username=form_data.username)
+    if not db_user:
+        raise HTTPException(status_code=401,detail="Not found")
+    
+    if auth.verify_password(form_data.password,db_user.hashed_password):
+        token=auth.create_access_token(db_user)
+        return {"access_token":token,"token_type":"Bearer"}
 
-@app.post("/register",tags=["Users"])
+    return "Wrong username or  password "
+
+@app.post("/register",tags=["Users"],status_code=status.HTTP_201_CREATED)
 def register_user(user:models_and_schemas.UserSchema,db:Session=Depends(database.get_db)):
    
     db_user = crud.get_user_by_username(db=db,username=user.username)
@@ -77,7 +91,7 @@ def register_user(user:models_and_schemas.UserSchema,db:Session=Depends(database
 # def get_all_users(db:Session=Depends(database.get_db),token: str = Depends(auth.oauth2_scheme)):
 #     users=crud.get_user(db=db)
 #     return users
-@app.get("/user",tags=["Users"])
+@app.get("/user",tags=["Users"],status_code=status.HTTP_200_OK)
 def get_all_users(db:Session=Depends(database.get_db),active: bool = Depends(auth.check_active)):
     users=crud.get_user(db=db)
     return users
@@ -91,11 +105,13 @@ def get_all_users(db:Session=Depends(database.get_db)):
     users=crud.get_user(db=db)
     return users
 
-@app.get("/verify/{token}",response_class=HTMLResponse,tags=["Users"])
+@app.get("/verify/{token}",response_class=HTMLResponse,tags=["Users"],status_code=status.HTTP_200_OK)
 def verify_user(token: str,db:Session = Depends(database.get_db)):
     claims=auth.decode_token(token)
     username=claims.get("sub")
     db_user=crud.get_user_by_username(db,username)
+    if not db_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail=f"Username={username} with this doesnot exist")
     db_user.is_active=True
     db.commit()
     db.refresh(db_user)
@@ -103,30 +119,37 @@ def verify_user(token: str,db:Session = Depends(database.get_db)):
     <p>Account activated</p>
     """
 """Movies"""
-@app.post("/movies",tags=["Movies"])
+@app.post("/movies",tags=["Movies"],status_code=status.HTTP_201_CREATED)
 def add_movies(movie:models_and_schemas.MovieSchema,db:Session=Depends(database.get_db),active: bool = Depends(auth.check_admin)):
     db_movie=crud.create_movies(db=db,movie=movie)
     return db_movie
 
-@app.get("/movies",tags=["Movies"])
+@app.get("/movies",tags=["Movies"],status_code=status.HTTP_200_OK)
 def get_all_movies(db:Session=Depends(database.get_db),active: bool = Depends(auth.check_active)):
     movies=crud.get_movies(db=db)
     return movies
 
-@app.patch("/movies/{id}",tags=["Movies"])
+@app.put("/movies/{id}",tags=["Movies"],status_code=status.HTTP_202_ACCEPTED)
 def update_movie(id:int,movie:models_and_schemas.MovieSchema,db:Session=Depends(database.get_db),active: bool = Depends(auth.check_admin)):
     db_movie=crud.update_movie(db=db,movie=movie,id=id)
     if db_movie==0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     return db_movie
+
+@app.get("/movies/{name}",tags=["Movies"],status_code=status.HTTP_200_OK)
+def search_movie(name:str,db:Session=Depends(database.get_db),active: bool = Depends(auth.check_admin)):
+    db_movie=crud.get_movie_by_name(db=db,name=name)
+    if db_movie is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return db_movie
     
 
 """Delete Movie"""    
-@app.get("/movies/{id}",tags=["Movies"])
+@app.get("/movies/{id}",tags=["Movies"],status_code=status.HTTP_204_NO_CONTENT)
 def delete_movie(id:int,db:Session=Depends(database.get_db),active: bool = Depends(auth.check_admin)):
     db_movie=crud.get_movie_by_id(db=db,id=id)
     if not db_movie:
         raise HTTPException(status_code=404,detail="Try again")
     db_movie.delete()
-    return movie
+    return {"response":"Deleted successfully"}
    
